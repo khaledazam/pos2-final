@@ -1,12 +1,13 @@
 import axios from "axios";
 
+
 const defaultHeader = {
   "Content-Type": "application/json",
   Accept: "application/json",
 };
 
 export const axiosWrapper = axios.create({
-  baseURL: "http://localhost:8000", // Fallback to hardcoded if env missing
+  baseURL: import.meta.env.VITE_BACKEND_URL, // Fallback to hardcoded if env missing
   withCredentials: true,
   headers: { ...defaultHeader },
 });
