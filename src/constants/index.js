@@ -1,0 +1,1 @@
+// Static data removed. All data is fetched from backend API.
