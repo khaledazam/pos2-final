@@ -35,6 +35,8 @@ A comprehensive Point of Sale (POS) system for managing restaurants and PlayStat
 - **Role-Based Access**: Admin and Cashier roles
 - **Secure Authentication**: JWT-based authentication with HTTP-only cookies
 - **Protected Routes**: Role-specific page access
+- ![Auth Page Screenshot](https://raw.githubusercontent.com/khaledazam/pos2-final/main/public/screenShoots/screencapture-pos2-final-vercel-app-auth-2026-02-12-11_32_43.png)
+
 
 ### Thermal Printer Support
 - **SPRT SP-POS88 Integration**: Native support for 80mm thermal printers
