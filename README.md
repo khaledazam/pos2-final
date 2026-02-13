@@ -35,6 +35,24 @@ A comprehensive Point of Sale (POS) system for managing restaurants and PlayStat
 - **Role-Based Access**: Admin and Cashier roles
 - **Secure Authentication**: JWT-based authentication with HTTP-only cookies
 - **Protected Routes**: Role-specific page access
+- ![Auth Page Screenshot](https://raw.githubusercontent.com/khaledazam/pos2-final/main/public/screenShoots/screencapture-pos2-final-vercel-app-auth-2026-02-12-11_32_43.png)
+
+### Dashboard
+![Dashboard Screenshot](https://raw.githubusercontent.com/khaledazam/pos2-final/main/public/screenShoots/screencapture-pos2-third-cmjd-vercel-app-dashboard-2026-02-12-11_34_11.png)
+![Dashboard Screenshot](https://raw.githubusercontent.com/khaledazam/pos2-final/main/public/screenShoots/screencapture-pos2-third-cmjd-vercel-app-dashboard-2026-02-12-11_36_03.png)
+![Dashboard 1](https://raw.githubusercontent.com/khaledazam/pos2-final/main/public/screenShoots/screencapture-pos2-third-cmjd-vercel-app-dashboard-2026-02-12-11_36_16.png)
+![Dashboard 2](https://raw.githubusercontent.com/khaledazam/pos2-final/main/public/screenShoots/screencapture-pos2-third-cmjd-vercel-app-dashboard-2026-02-12-11_36_31.png)
+![Dashboard 3](https://raw.githubusercontent.com/khaledazam/pos2-final/main/public/screenShoots/screencapture-pos2-third-cmjd-vercel-app-dashboard-2026-02-12-11_36_46.png)
+
+### Menu
+![Menu](https://raw.githubusercontent.com/khaledazam/pos2-final/main/public/screenShoots/screencapture-pos2-third-cmjd-vercel-app-menu-2026-02-12-11_37_18.png)
+
+### Tables
+![Tables](https://raw.githubusercontent.com/khaledazam/pos2-final/main/public/screenShoots/screencapture-pos2-third-cmjd-vercel-app-tables-2026-02-12-11_37_04.png)
+
+
+
+
 
 ### Thermal Printer Support
 - **SPRT SP-POS88 Integration**: Native support for 80mm thermal printers
