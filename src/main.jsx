@@ -7,6 +7,7 @@ import store from "./redux/store.js";
 import { SnackbarProvider } from "notistack";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

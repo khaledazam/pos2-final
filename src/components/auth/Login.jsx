@@ -26,36 +26,42 @@ const Login = () => {
   const loginMutation = useMutation({
     mutationFn: (reqData) => login(reqData),
     onSuccess: (res) => {
-      console.log("✅ Login response:", res.data);
+  console.log("✅ Login response:", res.data);
 
-      const { user, token } = res.data;
+  const { user, token } = res.data;
 
-      if (user && token) {
-        // ✅ ADDED: Save token to localStorage
-        localStorage.setItem("token", token);
+  if (user && token) {
+    // حفظ التوكن
+    localStorage.setItem("token", token);
 
-        // ✅ ADDED: Save user to Redux
-        dispatch(setUser({
-          id: user.id || user._id,
-          name: user.name,
-          email: user.email,
-          phone: user.phone,
-          role: user.role
-        }));
+    // إنشاء object نظيف للمستخدم (نفس الشكل اللي في setUser)
+    const userData = {
+      id: user.id || user._id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+    };
 
-        enqueueSnackbar(`Welcome back, ${user.name}!`, { variant: "success" });
+    // حفظ الـ user كامل في localStorage (ده اللي هيحل مشكلة الريفريش)
+    localStorage.setItem("user", JSON.stringify(userData));
 
-        // ✅ ADDED: Redirect based on role
-        const role = user.role?.toLowerCase();
-        if (role === "admin") {
-          navigate("/dashboard");
-        } else {
-          navigate("/pos");
-        }
-      } else {
-        enqueueSnackbar("Invalid response from server", { variant: "error" });
-      }
-    },
+    // تحديث Redux
+    dispatch(setUser(userData));
+
+    enqueueSnackbar(`Welcome back, ${user.name}!`, { variant: "success" });
+
+    // التوجيه حسب الدور
+    const role = user.role?.toLowerCase();
+    if (role === "admin") {
+      navigate("/dashboard");
+    } else {
+      navigate("/pos");
+    }
+  } else {
+    enqueueSnackbar("Invalid response from server", { variant: "error" });
+  }
+},
     onError: (error) => {
       console.error("Login error:", error.response?.data);
       const message = error.response?.data?.message || "خطأ في تسجيل الدخول";
