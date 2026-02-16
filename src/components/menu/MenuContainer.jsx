@@ -14,9 +14,20 @@ const MenuContainer = () => {
   const [editingItem, setEditingItem] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
   
-  // ✅ Get user role
-  const { user } = useSelector((state) => state.user);
+  // ✅ Get user role from Redux - Fixed!
+  const userState = useSelector((state) => state.user);
+  
+  // Handle both possible Redux structures:
+  // 1. { user: { role: "admin" } }
+  // 2. { isAuth: true, user: { role: "admin" } }
+  const user = userState?.user || userState;
   const isAdmin = user?.role?.toLowerCase() === "admin";
+  
+  // ✅ Debug logs (remove in production)
+  console.log("🔍 User State:", userState);
+  console.log("👤 User:", user);
+  console.log("🔑 Role:", user?.role);
+  console.log("👑 Is Admin:", isAdmin);
 
   // ────────────────────────────────────────────────
   // Fetch Inventory
@@ -30,6 +41,7 @@ const MenuContainer = () => {
     queryKey: ["inventory"],
     queryFn: async () => {
       const res = await getInventory();
+      console.log("📦 Inventory Response:", res.data);
       return res.data;
     },
     staleTime: 1000 * 60 * 10,
@@ -44,7 +56,11 @@ const MenuContainer = () => {
   useEffect(() => {
     if (response?.data?.data && Array.isArray(response.data.data)) {
       setStableItems(response.data.data);
-      console.log("تم تحديث stableItems:", response.data.data.length, "منتج");
+      console.log("✅ تم تحديث stableItems:", response.data.data.length, "منتج");
+    } else if (response?.data && Array.isArray(response.data)) {
+      // Handle if response structure is different
+      setStableItems(response.data);
+      console.log("✅ تم تحديث stableItems:", response.data.length, "منتج");
     }
   }, [response]);
 
@@ -67,6 +83,7 @@ const MenuContainer = () => {
       setEditingItem(null);
     },
     onError: (err) => {
+      console.error("❌ Update Error:", err);
       enqueueSnackbar(err.response?.data?.message || "فشل تحديث المنتج", { variant: "error" });
     }
   });
@@ -81,6 +98,7 @@ const MenuContainer = () => {
       queryClient.invalidateQueries(["inventory"]);
     },
     onError: (err) => {
+      console.error("❌ Delete Error:", err);
       enqueueSnackbar(err.response?.data?.message || "فشل حذف المنتج", { variant: "error" });
     }
   });
@@ -113,6 +131,7 @@ const MenuContainer = () => {
         price: item.price * qty,
       })
     );
+    enqueueSnackbar(`تم إضافة ${item.name} للسلة`, { variant: "success" });
   };
 
   const handleEdit = (item) => {
@@ -143,28 +162,49 @@ const MenuContainer = () => {
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-screen bg-[#0a0a0a]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-500"></div>
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-500"></div>
+          <p className="text-gray-400">جاري تحميل القائمة...</p>
+        </div>
       </div>
     );
   }
 
   if (error) {
-    console.error("خطأ في جلب المنتجات:", error);
+    console.error("❌ خطأ في جلب المنتجات:", error);
     return (
-      <div className="p-6 bg-[#0a0a0a] min-h-screen">
-        <p className="text-red-500 text-center text-lg">
-          فشل تحميل القائمة: {error.message || "خطأ غير معروف"}
-        </p>
+      <div className="p-6 bg-[#0a0a0a] min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-500 text-xl mb-4">
+            فشل تحميل القائمة
+          </p>
+          <p className="text-gray-400 mb-4">
+            {error.response?.status === 403 
+              ? "ليس لديك صلاحية للوصول" 
+              : error.message || "خطأ غير معروف"}
+          </p>
+          <button
+            onClick={() => queryClient.invalidateQueries(["inventory"])}
+            className="bg-yellow-500 hover:bg-yellow-400 text-black px-6 py-2 rounded-lg font-bold"
+          >
+            إعادة المحاولة
+          </button>
+        </div>
       </div>
     );
   }
 
   if (menuItems.length === 0) {
     return (
-      <div className="p-6 bg-[#0a0a0a] min-h-screen">
-        <p className="text-white text-center text-lg">
-          لم يتم العثور على عناصر في القائمة
-        </p>
+      <div className="p-6 bg-[#0a0a0a] min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-white text-xl mb-2">
+            لم يتم العثور على عناصر في القائمة
+          </p>
+          <p className="text-gray-400">
+            {isFetching ? "جاري التحميل..." : "لا توجد منتجات متاحة"}
+          </p>
+        </div>
       </div>
     );
   }
@@ -225,7 +265,7 @@ const MenuContainer = () => {
                   relative
                 "
               >
-                {/* Admin Actions */}
+                {/* Admin Actions - Only show if user is Admin */}
                 {isAdmin && (
                   <div className="absolute top-2 right-2 flex gap-2 z-10">
                     <button
@@ -336,7 +376,7 @@ const MenuContainer = () => {
                 <label className="block text-sm font-medium mb-2 text-gray-300">الفئة</label>
                 <input
                   type="text"
-                  value={editingItem.category}
+                  value={editingItem.category || ""}
                   onChange={(e) => setEditingItem({ ...editingItem, category: e.target.value })}
                   className="w-full bg-[#0f0f0f] border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-yellow-500"
                 />
