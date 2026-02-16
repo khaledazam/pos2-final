@@ -1,16 +1,25 @@
 import React, { useState, useEffect } from "react";
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { addItems } from "../../redux/slices/cartSlice";
-import { useQuery } from "@tanstack/react-query";
-import { getInventory } from "../../https";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getInventory, updateInventoryItem, deleteInventoryItem } from "../../https";
+import { enqueueSnackbar } from "notistack";
 
 const MenuContainer = () => {
   const dispatch = useDispatch();
+  const queryClient = useQueryClient();
+  
   const [countMap, setCountMap] = useState({});
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const [editingItem, setEditingItem] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  
+  // ✅ Get user role
+  const { user } = useSelector((state) => state.user);
+  const isAdmin = user?.role?.toLowerCase() === "admin";
 
   // ────────────────────────────────────────────────
-  // استخدام useQuery مع إعدادات أفضل للاستقرار
+  // Fetch Inventory
   // ────────────────────────────────────────────────
   const { 
     data: response, 
@@ -21,18 +30,15 @@ const MenuContainer = () => {
     queryKey: ["inventory"],
     queryFn: async () => {
       const res = await getInventory();
-      return res.data; // { success: true, count: 174, data: [...] }
+      return res.data;
     },
-    staleTime: 1000 * 60 * 10,          // 10 دقائق – يقلل الـ refetch التلقائي
-    gcTime: 1000 * 60 * 60,             // ساعة – يحتفظ بالكاش أطول
-    placeholderData: (previousData) => previousData,  // يحتفظ بالبيانات القديمة أثناء التحديث
-    refetchOnWindowFocus: false,        // مهم جدًا لتجنب الـ flicker عند الرجوع للتب
+    staleTime: 1000 * 60 * 10,
+    gcTime: 1000 * 60 * 60,
+    placeholderData: (previousData) => previousData,
+    refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   });
 
-  // ────────────────────────────────────────────────
-  // نسخة مستقرة من المنتجات لتجنب الاختفاء المؤقت
-  // ────────────────────────────────────────────────
   const [stableItems, setStableItems] = useState([]);
 
   useEffect(() => {
@@ -43,15 +49,45 @@ const MenuContainer = () => {
   }, [response]);
 
   const menuItems = stableItems;
-
-  // استخراج الفئات من المنتجات المستقرة
   const categories = ["All", ...new Set(menuItems.map(item => item.category).filter(Boolean))];
-
-  // فلترة حسب الفئة المختارة
+  
   const itemsToShow = selectedCategory === "All"
     ? menuItems
     : menuItems.filter(item => item.category === selectedCategory);
 
+  // ────────────────────────────────────────────────
+  // Update Item Mutation
+  // ────────────────────────────────────────────────
+  const updateMutation = useMutation({
+    mutationFn: updateInventoryItem,
+    onSuccess: () => {
+      enqueueSnackbar("تم تحديث المنتج بنجاح!", { variant: "success" });
+      queryClient.invalidateQueries(["inventory"]);
+      setShowEditModal(false);
+      setEditingItem(null);
+    },
+    onError: (err) => {
+      enqueueSnackbar(err.response?.data?.message || "فشل تحديث المنتج", { variant: "error" });
+    }
+  });
+
+  // ────────────────────────────────────────────────
+  // Delete Item Mutation
+  // ────────────────────────────────────────────────
+  const deleteMutation = useMutation({
+    mutationFn: deleteInventoryItem,
+    onSuccess: () => {
+      enqueueSnackbar("تم حذف المنتج بنجاح!", { variant: "success" });
+      queryClient.invalidateQueries(["inventory"]);
+    },
+    onError: (err) => {
+      enqueueSnackbar(err.response?.data?.message || "فشل حذف المنتج", { variant: "error" });
+    }
+  });
+
+  // ────────────────────────────────────────────────
+  // Handlers
+  // ────────────────────────────────────────────────
   const increment = (id) => {
     setCountMap((prev) => ({
       ...prev,
@@ -79,29 +115,53 @@ const MenuContainer = () => {
     );
   };
 
+  const handleEdit = (item) => {
+    setEditingItem({ ...item });
+    setShowEditModal(true);
+  };
+
+  const handleDelete = (item) => {
+    if (window.confirm(`هل أنت متأكد من حذف "${item.name}"؟`)) {
+      deleteMutation.mutate(item._id);
+    }
+  };
+
+  const handleSaveEdit = (e) => {
+    e.preventDefault();
+    updateMutation.mutate({
+      id: editingItem._id,
+      name: editingItem.name,
+      price: editingItem.price,
+      category: editingItem.category,
+      description: editingItem.description,
+    });
+  };
+
   // ────────────────────────────────────────────────
-  // حالات التحميل والأخطاء
+  // Loading & Error States
   // ────────────────────────────────────────────────
   if (isLoading) {
     return (
-      <p className="p-6 text-white text-center text-lg">
-        جاري تحميل القائمة...
-      </p>
+      <div className="flex justify-center items-center h-screen bg-[#0a0a0a]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-500"></div>
+      </div>
     );
   }
 
   if (error) {
     console.error("خطأ في جلب المنتجات:", error);
     return (
-      <p className="p-6 text-red-500 text-center text-lg">
-        فشل تحميل القائمة: {error.message || "خطأ غير معروف"}
-      </p>
+      <div className="p-6 bg-[#0a0a0a] min-h-screen">
+        <p className="text-red-500 text-center text-lg">
+          فشل تحميل القائمة: {error.message || "خطأ غير معروف"}
+        </p>
+      </div>
     );
   }
 
   if (menuItems.length === 0) {
     return (
-      <div className="p-6">
+      <div className="p-6 bg-[#0a0a0a] min-h-screen">
         <p className="text-white text-center text-lg">
           لم يتم العثور على عناصر في القائمة
         </p>
@@ -110,13 +170,8 @@ const MenuContainer = () => {
   }
 
   return (
-  <div className="min-h-screen flex flex-col bg-[#0a0a0a] text-white">
-    {/* Header أو أي محتوى علوي إذا كان موجود */}
-    {/* <Header /> مثلاً */}
-
-    {/* الـ container الرئيسي للمنيو */}
-    <div className="flex-1 flex flex-col overflow-hidden">
-      {/* Category Tabs - sticky + scrollable horizontally */}
+    <div className="min-h-screen flex flex-col bg-[#0a0a0a] text-white">
+      {/* Category Tabs */}
       <div className="sticky top-0 z-20 bg-[#0f0f0f] border-b border-gray-800 shadow-md">
         <div className="flex gap-2.5 px-4 py-3 overflow-x-auto scrollbar-hide whitespace-nowrap">
           {categories.map((category) => (
@@ -141,7 +196,7 @@ const MenuContainer = () => {
         </div>
       </div>
 
-      {/* منطقة المنتجات - scrollable رأسيًا */}
+      {/* Products Grid */}
       <div className="flex-1 overflow-y-auto px-4 py-6 md:px-6 lg:px-8">
         {isFetching && !isLoading && (
           <div className="text-center text-gray-400 py-3 text-sm">
@@ -167,10 +222,33 @@ const MenuContainer = () => {
                   shadow-md hover:shadow-xl hover:shadow-black/30
                   transition-all duration-300
                   flex flex-col h-full
+                  relative
                 "
               >
-                {/* صورة المنتج لو موجودة */}
-                {/* {item.image && <img src={item.image} alt={item.name} className="w-full h-40 object-cover" />} */}
+                {/* Admin Actions */}
+                {isAdmin && (
+                  <div className="absolute top-2 right-2 flex gap-2 z-10">
+                    <button
+                      onClick={() => handleEdit(item)}
+                      className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg shadow-lg transition-all"
+                      title="تعديل"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => handleDelete(item)}
+                      disabled={deleteMutation.isPending}
+                      className="bg-red-600 hover:bg-red-700 text-white p-2 rounded-lg shadow-lg transition-all disabled:opacity-50"
+                      title="حذف"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
 
                 <div className="p-4 flex flex-col flex-1">
                   {item.category && (
@@ -223,12 +301,81 @@ const MenuContainer = () => {
           </div>
         )}
       </div>
-    </div>
 
-    {/* Footer أو أي محتوى سفلي إذا كان موجود */}
-    {/* <Footer /> */}
-  </div>
-);
+      {/* Edit Modal */}
+      {showEditModal && editingItem && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1a1a1a] rounded-2xl p-6 max-w-md w-full border border-gray-800">
+            <h2 className="text-2xl font-bold mb-6 text-yellow-500">تعديل المنتج</h2>
+            
+            <form onSubmit={handleSaveEdit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2 text-gray-300">اسم المنتج</label>
+                <input
+                  type="text"
+                  value={editingItem.name}
+                  onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })}
+                  className="w-full bg-[#0f0f0f] border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-yellow-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2 text-gray-300">السعر</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={editingItem.price}
+                  onChange={(e) => setEditingItem({ ...editingItem, price: parseFloat(e.target.value) })}
+                  className="w-full bg-[#0f0f0f] border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-yellow-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2 text-gray-300">الفئة</label>
+                <input
+                  type="text"
+                  value={editingItem.category}
+                  onChange={(e) => setEditingItem({ ...editingItem, category: e.target.value })}
+                  className="w-full bg-[#0f0f0f] border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-yellow-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2 text-gray-300">الوصف</label>
+                <textarea
+                  value={editingItem.description || ""}
+                  onChange={(e) => setEditingItem({ ...editingItem, description: e.target.value })}
+                  className="w-full bg-[#0f0f0f] border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-yellow-500 h-24 resize-none"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="submit"
+                  disabled={updateMutation.isPending}
+                  className="flex-1 bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-3 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {updateMutation.isPending ? "جاري الحفظ..." : "حفظ التعديلات"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setEditingItem(null);
+                  }}
+                  className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-lg transition-colors"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 };
 
 export default MenuContainer;

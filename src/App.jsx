@@ -143,7 +143,7 @@ function Layout() {
             <Route
               path="/inventory"
               element={
-                <ProtectedRoute allowedRoles={["admin"]}>
+                <ProtectedRoute allowedRoles={["cashier", "admin"]}>
                   <InventoryDashboard />
                 </ProtectedRoute>
               }
