@@ -21,23 +21,30 @@ const Bill = () => {
   const [paymentMethod, setPaymentMethod] = useState("Cash");
   const [showInvoice, setShowInvoice] = useState(false);
   const [orderInfo, setOrderInfo] = useState(null);
-  const [autoPrint, setAutoPrint] = useState(false); // ✅ Auto Print State
+  const [autoPrint, setAutoPrint] = useState(false);
 
-  /* ================== CREATE ORDER MUTATION ================== */
+  // ────────────────────────────────────────────────
+  // Create Order Mutation
+  // ────────────────────────────────────────────────
   const orderMutation = useMutation({
     mutationFn: (payload) => addOrder(payload),
-    onSuccess: (res) => {
-      console.log("Full response from addOrder:", res); // ← log مهم جدًا عشان نشوف الداتا الحقيقية
 
+    onSuccess: (res) => {
       const order = res?.data?.data?.order;
+
       if (!order || !order._id) {
-        console.error("Invalid or missing order data:", order);
-        enqueueSnackbar("فشل في الحصول على بيانات الطلب", { variant: "error" });
+        console.error("Invalid order data received:", res);
+        enqueueSnackbar("فشل في استلام بيانات الطلب بشكل صحيح", { variant: "error" });
         return;
       }
 
       setOrderInfo(order);
 
+      // نفرغ السلة والعميل فور نجاح إنشاء الطلب (مهم جدًا)
+      dispatch(removeAllItems());
+      dispatch(removeCustomer());
+
+      // إذا كان هناك طاولة → نحدث حالتها
       if (order.table?._id) {
         tableMutation.mutate({
           id: order.table._id,
@@ -49,29 +56,37 @@ const Bill = () => {
       enqueueSnackbar("تم تسجيل الطلب بنجاح!", { variant: "success" });
       setShowInvoice(true);
     },
+
     onError: (error) => {
-      const msg = error?.response?.data?.message || "فشل في تسجيل الطلب!";
+      const msg =
+        error?.response?.data?.message ||
+        "حدث خطأ أثناء تسجيل الطلب، حاول مرة أخرى";
       enqueueSnackbar(msg, { variant: "error" });
     },
   });
 
-  /* ================== UPDATE TABLE MUTATION ================== */
+  // ────────────────────────────────────────────────
+  // Update Table Mutation
+  // ────────────────────────────────────────────────
   const tableMutation = useMutation({
     mutationFn: (payload) => updateTable(payload),
+
     onSuccess: () => {
-      dispatch(removeAllItems());
-      dispatch(removeCustomer());
-      enqueueSnackbar("تم تحديث حالة الطاولة", { variant: "success" });
+      enqueueSnackbar("تم تحديث حالة الطاولة بنجاح", { variant: "success" });
     },
+
     onError: () => {
       enqueueSnackbar("فشل تحديث حالة الطاولة", { variant: "warning" });
+      // ملحوظة: السلة والعميل تم تفريغهما بالفعل في orderMutation
     },
   });
 
-  /* ================== PLACE ORDER HANDLER ================== */
+  // ────────────────────────────────────────────────
+  // Place Order Handler
+  // ────────────────────────────────────────────────
   const handlePlaceOrder = () => {
     if (cart.length === 0) {
-      enqueueSnackbar("السلة فارغة!", { variant: "warning" });
+      enqueueSnackbar("السلة فارغة! أضف منتجات أولاً", { variant: "warning" });
       return;
     }
 
@@ -79,7 +94,7 @@ const Bill = () => {
     const sessionId = customer?.session?._id;
 
     if (!tableId && !sessionId) {
-      enqueueSnackbar("يرجى اختيار طاولة أو جلسة أولاً!", { variant: "warning" });
+      enqueueSnackbar("يرجى اختيار طاولة أو جلسة أولاً", { variant: "warning" });
       return;
     }
 
@@ -102,12 +117,12 @@ const Bill = () => {
     orderMutation.mutate(payload);
   };
 
-  const grandTotal = total; // No tax
+  const grandTotal = total;
   const taxAmount = 0;
 
   return (
     <>
-      {/* Summary */}
+      {/* ملخص الفاتورة */}
       <div className="px-5 mt-4 space-y-3">
         <div className="flex justify-between text-sm text-gray-400">
           <span>عدد العناصر ({cart.length})</span>
@@ -125,24 +140,25 @@ const Bill = () => {
         </div>
       </div>
 
-      {/* Payment Method */}
+      {/* طرق الدفع */}
       <div className="flex gap-3 px-5 mt-6">
         {["Cash", "Online"].map((method) => (
           <button
             key={method}
             type="button"
             onClick={() => setPaymentMethod(method)}
-            className={`flex-1 py-3.5 rounded-lg font-medium transition-colors ${paymentMethod === method
-              ? "bg-[#444] text-white"
-              : "bg-[#222] text-gray-400 hover:bg-[#333]"
-              }`}
+            className={`flex-1 py-3.5 rounded-lg font-medium transition-colors ${
+              paymentMethod === method
+                ? "bg-[#444] text-white"
+                : "bg-[#222] text-gray-400 hover:bg-[#333]"
+            }`}
           >
             {method === "Cash" ? "كاش" : "أونلاين"}
           </button>
         ))}
       </div>
 
-      {/* ✅ Auto Print Checkbox */}
+      {/* خيار الطباعة التلقائية */}
       <div className="px-5 mt-4 flex items-center gap-2">
         <input
           type="checkbox"
@@ -151,39 +167,42 @@ const Bill = () => {
           onChange={(e) => setAutoPrint(e.target.checked)}
           className="w-5 h-5 accent-yellow-500 cursor-pointer"
         />
-        <label htmlFor="autoPrint" className="text-gray-300 cursor-pointer select-none text-sm">
-          طباعة تلقائية للفاتورة (Thermal)
+        <label
+          htmlFor="autoPrint"
+          className="text-gray-300 cursor-pointer select-none text-sm"
+        >
+          طباعة تلقائية للفاتورة (Thermal Printer)
         </label>
       </div>
 
-      {/* Actions */}
-      <div className="flex gap-3 px-5 mt-4">
-        <button
-          disabled
-          title="Print is handled in Invoice"
-          className="flex-1 bg-blue-700/50 py-3.5 rounded-lg text-white font-medium cursor-not-allowed opacity-60 hidden" // Hidden or removed as requested? User said "Add print button to Invoice modal", logic moved there.
-        >
-          طباعة
-        </button>
-
+      {/* الأزرار */}
+      <div className="flex gap-3 px-5 mt-6 pb-6">
         <button
           onClick={handlePlaceOrder}
-          disabled={orderMutation.isPending}
-          className={`flex-1 py-3.5 rounded-lg font-bold transition-colors ${orderMutation.isPending
-            ? "bg-yellow-600/50 cursor-wait"
-            : "bg-yellow-500 hover:bg-yellow-400 text-black"
-            }`}
+          disabled={orderMutation.isPending || cart.length === 0}
+          className={`flex-1 py-4 rounded-xl font-bold text-lg transition-all ${
+            orderMutation.isPending || cart.length === 0
+              ? "bg-yellow-600/50 cursor-not-allowed text-gray-300"
+              : "bg-yellow-500 hover:bg-yellow-400 text-black shadow-lg shadow-yellow-500/20"
+          }`}
         >
-          {orderMutation.isPending ? "جاري التسجيل..." : "تأكيد الطلب"}
+          {orderMutation.isPending ? (
+            <div className="flex items-center justify-center gap-2">
+              <div className="animate-spin h-5 w-5 border-2 border-black border-t-transparent rounded-full" />
+              جاري التسجيل...
+            </div>
+          ) : (
+            "تأكيد الطلب وإصدار الفاتورة"
+          )}
         </button>
       </div>
 
-      {/* Invoice Modal */}
+      {/* نافذة الفاتورة */}
       {showInvoice && orderInfo && (
         <Invoice
           orderInfo={orderInfo}
           setShowInvoice={setShowInvoice}
-          autoprint={autoPrint} // ✅ Pass autoPrint prop
+          autoPrint={autoPrint}
         />
       )}
     </>

@@ -10,15 +10,23 @@ import InventoryModal from "../components/dashboard/InventoryModal";
 
 const InventoryDashboard = () => {
     const { enqueueSnackbar } = useSnackbar();
+
+    // تصحيح استخراج الـ user
+    const reduxUser = useSelector((state) => state.user);
+    const currentUser = reduxUser?.user || {};           // ← المستوى الصحيح
+    const isAdmin = currentUser.role?.toLowerCase() === "admin";
+
     const [items, setItems] = useState([]);
-    const [loading, setLoading] = useState(false); // Initial load
+    const [loading, setLoading] = useState(false);
     const [showModal, setShowModal] = useState(false);
     const [isEditMode, setIsEditMode] = useState(false);
     const [currentItem, setCurrentItem] = useState(null);
     const [deleteId, setDeleteId] = useState(null);
 
-    const user = useSelector((state) => state.user);
-    const isAdmin = user.role?.toLowerCase() === "admin";
+    // console.log("reduxUser:", reduxUser);
+    // console.log("currentUser:", currentUser);
+    // console.log("isAdmin:", isAdmin);
+    // console.log("currentUser.role:", currentUser.role);
 
     const fetchInventory = async () => {
         setLoading(true);
@@ -51,6 +59,56 @@ const InventoryDashboard = () => {
         setShowModal(true);
     };
 
+    const handleQuantityChange = async (itemId, change) => {
+        const item = items.find((i) => i._id === itemId);
+        if (!item) return;
+
+        const newQuantity = Number(item.quantity) + change;
+
+        if (newQuantity < 0) {
+            enqueueSnackbar("Cannot reduce quantity below 0", { variant: "warning" });
+            return;
+        }
+
+        try {
+            // Optimistic update
+            setItems((prevItems) =>
+                prevItems.map((i) =>
+                    i._id === itemId
+                        ? {
+                              ...i,
+                              quantity: newQuantity,
+                              warning: newQuantity <= i.threshold,
+                          }
+                        : i
+                )
+            );
+
+            await updateInventoryItem({
+                id: itemId,
+                quantity: newQuantity,
+            });
+
+            enqueueSnackbar(`Quantity updated to ${newQuantity}`, { variant: "success" });
+        } catch (error) {
+            console.error("Failed to update quantity:", error);
+            enqueueSnackbar("Failed to update quantity", { variant: "error" });
+
+            // Revert optimistic update on error
+            setItems((prevItems) =>
+                prevItems.map((i) =>
+                    i._id === itemId
+                        ? {
+                              ...i,
+                              quantity: item.quantity,
+                              warning: item.quantity <= item.threshold,
+                          }
+                        : i
+                )
+            );
+        }
+    };
+
     const handleDelete = async () => {
         if (!deleteId) return;
         try {
@@ -69,9 +127,14 @@ const InventoryDashboard = () => {
             <div className="flex justify-between items-center mb-10 border-b border-[#333] pb-6">
                 <div>
                     <h1 className="text-4xl font-black flex items-center gap-4">
-                        <span className="bg-[#e2bc15] text-black p-3 rounded-2xl"><FaPlus size={24} /></span> Inventory & Warehouse
+                        <span className="bg-[#e2bc15] text-black p-3 rounded-2xl">
+                            <FaPlus size={24} />
+                        </span>{" "}
+                        Inventory & Warehouse
                     </h1>
-                    <p className="text-[#ababab] mt-2 text-lg font-bold">Manage products, quantities, and prices</p>
+                    <p className="text-[#ababab] mt-2 text-lg font-bold">
+                        Manage products, quantities, and prices
+                    </p>
                 </div>
                 {isAdmin && (
                     <button
@@ -83,10 +146,13 @@ const InventoryDashboard = () => {
                 )}
             </div>
 
+            {/* باقي الكود كما هو بدون تغيير */}
             {loading ? (
                 <div className="flex flex-col items-center justify-center py-40 gap-4">
                     <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-[#e2bc15]"></div>
-                    <p className="text-[#e2bc15] font-black text-xl animate-pulse">Loading Inventory...</p>
+                    <p className="text-[#e2bc15] font-black text-xl animate-pulse">
+                        Loading Inventory...
+                    </p>
                 </div>
             ) : (
                 <div className="overflow-hidden bg-[#1f1f1f] rounded-[2rem] shadow-2xl border border-[#333]">
@@ -106,14 +172,18 @@ const InventoryDashboard = () => {
                                 items.map((item) => (
                                     <tr
                                         key={item._id}
-                                        className={`hover:bg-[#2a2a2a] transition-all duration-300
-                                            ${item.warning ? "bg-red-900/10" : ""}
-                                        `}
+                                        className={`hover:bg-[#2a2a2a] transition-all duration-300 ${
+                                            item.warning ? "bg-red-900/10" : ""
+                                        }`}
                                     >
                                         <td className="p-6">
                                             <div className="flex flex-col">
-                                                <span className="text-xl font-black text-[#f5f5f5]">{item.name}</span>
-                                                <span className="text-sm text-[#555] font-bold">ID: {item._id.slice(-6).toUpperCase()}</span>
+                                                <span className="text-xl font-black text-[#f5f5f5]">
+                                                    {item.name}
+                                                </span>
+                                                <span className="text-sm text-[#555] font-bold">
+                                                    ID: {item._id.slice(-6).toUpperCase()}
+                                                </span>
                                             </div>
                                         </td>
                                         <td className="p-6">
@@ -125,9 +195,40 @@ const InventoryDashboard = () => {
                                             {formatCurrency(Number(item.price))}
                                         </td>
                                         <td className="p-6">
-                                            <div className="flex flex-col">
-                                                <span className="text-2xl font-black text-[#f5f5f5] tabular-nums">{item.quantity}</span>
-                                                <span className="text-sm text-[#ababab] font-bold">{item.unit}</span>
+                                            <div className="flex items-center gap-3">
+                                                {isAdmin && (
+                                                    <button
+                                                        onClick={() => handleQuantityChange(item._id, -1)}
+                                                        disabled={item.quantity <= 0}
+                                                        className={`w-10 h-10 flex items-center justify-center rounded-xl text-lg font-black transition-all ${
+                                                            item.quantity <= 0
+                                                                ? "bg-[#262626] text-gray-600 cursor-not-allowed"
+                                                                : "bg-red-900/30 text-red-400 hover:bg-red-600 hover:text-white"
+                                                        }`}
+                                                        title="Decrease quantity"
+                                                    >
+                                                        −
+                                                    </button>
+                                                )}
+
+                                                <div className="text-center min-w-[80px]">
+                                                    <span className="text-2xl font-black text-[#f5f5f5] tabular-nums">
+                                                        {item.quantity}
+                                                    </span>
+                                                    <span className="text-sm text-[#ababab] font-bold block">
+                                                        {item.unit}
+                                                    </span>
+                                                </div>
+
+                                                {isAdmin && (
+                                                    <button
+                                                        onClick={() => handleQuantityChange(item._id, +1)}
+                                                        className="w-10 h-10 flex items-center justify-center rounded-xl bg-green-900/30 text-green-400 text-lg font-black hover:bg-green-600 hover:text-white transition-all"
+                                                        title="Increase quantity"
+                                                    >
+                                                        +
+                                                    </button>
+                                                )}
                                             </div>
                                         </td>
                                         <td className="p-6">
@@ -143,7 +244,7 @@ const InventoryDashboard = () => {
                                         </td>
                                         {isAdmin && (
                                             <td className="p-6">
-                                                <div className="flex gap-2">
+                                                <div className="flex gap-2 justify-center">
                                                     <button
                                                         onClick={() => openEditModal(item)}
                                                         className="bg-[#262626] p-4 rounded-xl text-[#e2bc15] hover:bg-white hover:text-black transition-all shadow-lg"
@@ -165,18 +266,20 @@ const InventoryDashboard = () => {
                                 ))
                             ) : (
                                 <tr>
-                                    <td colSpan="6" className="p-20 text-center">
+                                    <td colSpan={isAdmin ? 6 : 5} className="p-20 text-center">
                                         <div className="opacity-30">
                                             <FaPlus className="mx-auto text-8xl mb-6" />
                                             <h3 className="text-2xl font-black">Inventory is empty</h3>
-                                            <p className="text-lg">Start by adding new items to your products</p>
+                                            <p className="text-lg">
+                                                Start by adding new items to your products
+                                            </p>
                                         </div>
                                     </td>
                                 </tr>
                             )}
                         </tbody>
                     </table>
-                </div >
+                </div>
             )}
 
             <InventoryModal
@@ -187,18 +290,16 @@ const InventoryDashboard = () => {
                 onSuccess={fetchInventory}
             />
 
-            {
-                deleteId && (
-                    <ConfirmationModal
-                        title="Delete Item"
-                        message="Are you sure you want to delete this item permanently from inventory?"
-                        onConfirm={handleDelete}
-                        onCancel={() => setDeleteId(null)}
-                        isDangerous={true}
-                    />
-                )
-            }
-        </div >
+            {deleteId && (
+                <ConfirmationModal
+                    title="Delete Item"
+                    message="Are you sure you want to delete this item permanently from inventory?"
+                    onConfirm={handleDelete}
+                    onCancel={() => setDeleteId(null)}
+                    isDangerous={true}
+                />
+            )}
+        </div>
     );
 };
 

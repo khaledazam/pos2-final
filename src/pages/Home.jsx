@@ -1,57 +1,100 @@
-import PopularDishes from "../components/home/PopularDishes";
+import React, { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getSummary, getOrders } from "../https";
-import { useEffect } from "react";
-import Greetings from "../components/home/Greetings";
-import RecentOrders from "../components/home/RecentOrders";
-import BottomNav from "../components/shared/BottomNav";
-import { BsCashCoin } from "react-icons/bs";
-import { GrInProgress } from "react-icons/gr";
-import MiniCard from "../components/home/MiniCard";
+import { getOrders } from "../https/index";
+import { enqueueSnackbar } from "notistack";
 
-const Home = () => {
-  useEffect(() => {
-    document.title = "POS | Home";
-  }, []);
+const RecentOrders = () => {
+  const { data: ordersRes, isLoading } = useQuery({
+    queryKey: ["orders"],
+    queryFn: getOrders,
+  });
 
-  // Fetch summary and orders from backend
-  const { data: summaryRes } = useQuery({ queryKey: ["summary"], queryFn: getSummary });
-  const { data: ordersRes } = useQuery({ queryKey: ["orders"], queryFn: getOrders });
-
-  const summary = summaryRes?.data?.data || {};
   const orders = ordersRes?.data?.data || [];
-  const inProgressCount =
-    orders.filter((order) => order.orderStatus === "In Progress").length;
+
+  // فلترة طلبات اليوم فقط
+  const todayOrders = useMemo(() => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0); // بداية اليوم
+
+    return orders.filter((order) => {
+      if (!order?.orderDate) return false;
+      const orderDate = new Date(order.orderDate);
+      return orderDate >= todayStart;
+    });
+  }, [orders]);
+
+  // ترتيب تنازلي حسب التاريخ (أحدث أولاً)
+  const sortedTodayOrders = useMemo(() => {
+    return [...todayOrders].sort((a, b) => 
+      new Date(b.orderDate) - new Date(a.orderDate)
+    );
+  }, [todayOrders]);
+
+  if (isLoading) {
+    return (
+      <div className="p-6 text-center text-gray-400">
+        جاري تحميل طلبات اليوم...
+      </div>
+    );
+  }
+
+  if (sortedTodayOrders.length === 0) {
+    return (
+      <div className="p-8 text-center text-gray-500">
+        <p className="text-lg font-medium">لا توجد طلبات اليوم حتى الآن</p>
+        <p className="text-sm mt-2">الطلبات الجديدة ستظهر هنا تلقائيًا</p>
+      </div>
+    );
+  }
 
   return (
-    <section className="bg-[#1f1f1f] h-[calc(100vh-5rem)] overflow-hidden flex gap-3">
-      {/* Left Div */}
-      <div className="flex-[3]">
-        <Greetings />
-        <div className="flex items-center w-full gap-3 px-8 mt-8">
-          <MiniCard
-            title="Today's Earnings"
-            icon={<BsCashCoin />}
-            number={summary.todaySales || 0}
-            footerNum={0}
-          />
-          <MiniCard
-            title="In Progress"
-            icon={<GrInProgress />}
-            number={inProgressCount}
-            footerNum={0}
-          />
-        </div>
-        <RecentOrders />
+    <div className="px-4 py-2">
+      <h3 className="text-[#f5f5f5] text-xl font-bold mb-4 flex items-center gap-2">
+        <span className="text-[#e2bc15]">طلبات اليوم</span>
+        <span className="text-gray-500 text-base">({sortedTodayOrders.length})</span>
+      </h3>
+
+      <div className="space-y-3 max-h-[400px] overflow-y-auto scrollbar-hide">
+        {sortedTodayOrders.map((order) => (
+          <div
+            key={order._id}
+            className="bg-[#1f1f1f] p-4 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:bg-[#252525] transition-all"
+          >
+            {/* Left - Customer & Table */}
+            <div className="flex-1">
+              <p className="text-[#f5f5f5] font-semibold">
+                {order.customerDetails?.name || "ضيف"}
+              </p>
+              <p className="text-sm text-gray-400">
+                {order.table?.tableNo 
+                  ? `طاولة ${order.table.tableNo}` 
+                  : "بدون طاولة"}
+              </p>
+            </div>
+
+            {/* Right - Total & Time */}
+            <div className="text-right">
+              <p className="text-[#e2bc15] font-bold text-lg">
+                ج.م{order.bills?.totalWithTax?.toFixed(2) || order.bills?.total?.toFixed(2) || "0.00"}
+              </p>
+              <p className="text-xs text-gray-400 mt-1">
+                {order.orderDate && new Date(order.orderDate).toLocaleString("ar-EG", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: true,
+                })}
+                {" • "}
+                {new Date(order.orderDate).toLocaleDateString("ar-EG", {
+                  month: "short",
+                  day: "numeric",
+                })}
+              </p>
+            </div>
+          </div>
+        ))}
       </div>
-      {/* Right Div */}
-      <div className="flex-[2]">
-        <PopularDishes />
-      </div>
-      <BottomNav />
-    </section>
+    </div>
   );
 };
 
-export default Home;
-
+export default RecentOrders;

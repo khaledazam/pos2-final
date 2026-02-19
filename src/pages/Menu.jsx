@@ -8,7 +8,7 @@ import CartInfo from "../components/menu/CartInfo";
 import Bill from "../components/menu/Bill";
 import { useSelector } from "react-redux";
 import { useQuery } from "@tanstack/react-query";
-import { getInventory } from "../https"; // ← تأكد إن الدالة دي موجودة وبتجيب /api/products
+import { getInventory } from "../https";
 
 const Menu = () => {
   useEffect(() => {
@@ -17,76 +17,100 @@ const Menu = () => {
 
   const customerData = useSelector((state) => state.customer);
   const user = useSelector((state) => state.user);
-  const isAdmin = user.role?.toLowerCase() === "admin";
+  const isAdmin = user?.role?.toLowerCase() === "admin";
 
-  // جلب المنتجات من الـ inventory (بدل أي داتا ثابتة)
   const { data: inventoryData, isLoading, error } = useQuery({
     queryKey: ["inventory"],
-    queryFn: getInventory, // ← بتجيب { success: true, data: [...] }
-    select: (res) => res.data?.data || [], // ← نأخذ الـ array من response.data.data
-    staleTime: 5 * 60 * 1000, // 5 دقايق
+    queryFn: getInventory,
+    select: (res) => res?.data?.data || [],
+    staleTime: 5 * 60 * 1000,
   });
 
   return (
-    <section className="bg-[#1f1f1f] h-[calc(100vh-5rem)] overflow-hidden flex gap-3">
-      {/* Left Div - Menu */}
-      <div className="flex-[3] flex flex-col">
-        <div className="flex items-center justify-between px-10 py-4">
-          <div className="flex items-center gap-4">
-            <BackButton />
-            <h1 className="text-[#f5f5f5] text-2xl font-bold tracking-wider">
-              Menu
-            </h1>
-          </div>
-          <div className="flex items-center justify-around gap-4">
-            <div className="flex items-center gap-3 cursor-pointer">
-              <MdRestaurantMenu className="text-[#f5f5f5] text-4xl" />
-              <div className="flex flex-col items-start">
-                <h1 className="text-md text-[#f5f5f5] font-semibold tracking-wide">
-                  {customerData.customerName || "اسم العميل"}
-                </h1>
-                <p className="text-xs text-[#ababab] font-medium">
-                  طاولة: {customerData.table?.tableNo || "غير محددة"}
-                </p>
-              </div>
-            </div>
-          </div>
+    <div className="flex flex-col h-screen bg-[#1f1f1f] overflow-hidden">
+      {/* Header */}
+      <header className="flex items-center justify-between px-4 py-3 md:px-8 md:py-4 border-b border-gray-800">
+        <div className="flex items-center gap-3 md:gap-4">
+          <BackButton />
+          <h1 className="text-white text-xl md:text-2xl font-bold tracking-wide">Menu</h1>
         </div>
 
-        {/* عرض حالات التحميل / الخطأ */}
-        {isLoading ? (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-[#e2bc15] mx-auto mb-4"></div>
-              <p className="text-[#e2bc15] font-bold text-xl">جاري تحميل المنيو...</p>
+        <div className="flex items-center gap-3">
+          <div className="hidden md:flex items-center gap-3">
+            <MdRestaurantMenu className="text-[#e2bc15] text-3xl" />
+            <div className="flex flex-col">
+              <span className="text-white font-medium">
+                {customerData.customerName || "اسم العميل"}
+              </span>
+              <span className="text-gray-400 text-xs">
+                طاولة: {customerData.table?.tableNo || "غير محددة"}
+              </span>
             </div>
           </div>
-        ) : error ? (
-          <div className="flex-1 flex items-center justify-center">
-            <p className="text-red-500 text-xl font-bold">
+
+          {/* زر عائم أو أيقونة السلة على الموبايل */}
+          <button className="md:hidden bg-yellow-600 text-white p-3 rounded-full shadow-lg">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
+              />
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      {/* Main content */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Menu area – ياخد كل العرض على الموبايل */}
+        <main className="flex-1 overflow-y-auto">
+          {isLoading ? (
+            <div className="h-full flex items-center justify-center">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 md:h-16 md:w-16 border-t-4 border-[#e2bc15] mx-auto mb-4"></div>
+                <p className="text-[#e2bc15] font-bold text-lg md:text-xl">جاري تحميل المنيو...</p>
+              </div>
+            </div>
+          ) : error ? (
+            <div className="h-full flex items-center justify-center text-red-500 text-lg md:text-xl p-4 text-center">
               فشل تحميل المنيو: {error.message || "خطأ غير معروف"}
-            </p>
+            </div>
+          ) : inventoryData?.length === 0 ? (
+            <div className="h-full flex items-center justify-center text-gray-400 text-lg md:text-xl">
+              لا توجد منتجات متاحة حاليًا
+            </div>
+          ) : (
+            <MenuContainer inventoryItems={inventoryData} />
+          )}
+        </main>
+
+        {/* Sidebar – مخفي على الموبايل، يظهر على الشاشات الكبيرة */}
+        <aside className="hidden lg:block w-80 xl:w-96 bg-[#1a1a1a] border-l border-gray-800 overflow-y-auto">
+          <div className="p-4 space-y-6">
+            <CustomerInfo />
+            <hr className="border-gray-800" />
+            <CartInfo />
+            <hr className="border-gray-800" />
+            <Bill />
           </div>
-        ) : inventoryData?.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center">
-            <p className="text-gray-400 text-xl">لا توجد منتجات متاحة حاليًا</p>
-          </div>
-        ) : (
-          <MenuContainer inventoryItems={inventoryData} />  // ← مرر الداتا للكومبوننت
-        )}
+        </aside>
       </div>
 
-      {/* Right Div */}
-      <div className="flex-[1] bg-[#1a1a1a] mt-4 mr-3 h-[780px] rounded-lg pt-2 overflow-y-auto">
-        <CustomerInfo />
-        <hr className="border-[#2a2a2a] border-t-2" />
-        <CartInfo />
-        <hr className="border-[#2a2a2a] border-t-2" />
-        <Bill />
-      </div>
-
+      {/* Bottom navigation for non-admin users on mobile */}
       {!isAdmin && <BottomNav />}
-    </section>
+
+      {/* Bottom sheet / Drawer for cart on mobile – يمكن تنفيذه لاحقًا */}
+      {/* مثال بسيط: */}
+      {/* {showCartSheet && (
+        <div className="fixed inset-0 bg-black/60 z-50 lg:hidden" onClick={() => setShowCartSheet(false)}>
+          <div className="absolute bottom-0 left-0 right-0 bg-[#1a1a1a] rounded-t-3xl max-h-[85vh] overflow-y-auto">
+            {/* محتوى الـ Cart + Bill هنا */}
+          {/* </div>
+        </div>
+      )} */}
+    </div>
   );
 };
 
