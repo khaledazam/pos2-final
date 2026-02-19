@@ -508,7 +508,7 @@ VITE_BACKEND_URL=https://pos-backend-s15p.onrender.com
 Issue: Can't login after deployment
 Fix: Check CORS settings and cookie configuration
 - sameSite: 'none', secure: true in production
-- CORS origin matches frontend URL
+- CORS origin matches frontend URL\n
 ```
 ### Database Connection Error
 ```
